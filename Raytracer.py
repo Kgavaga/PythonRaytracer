@@ -9,40 +9,51 @@ from time import sleep, time
 WIDTH = 1280
 HEIGHT = 720
 
-WIDTH = 600
-HEIGHT = 400
+WIDTH = 200
+HEIGHT = 100
 AA = True
 windowAlive = True
 
+class Window:
+    def __init__(self, windowTitle):
+        self.windowTitle = windowTitle
+        self.screen, self.font = self.__initWindow__(windowTitle)
 
-def initPygame():
-    os.environ['SDL_VIDEO_WINDOW_POS'] = '{},{}'.format(100, 100)
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.font.init()
-    myfont = pygame.font.SysFont('Arial', 30)
-    pygame.display.set_caption("Raytracer")
-    return (screen, myfont)
+    def __initWindow__(self, windowTitle):
+        os.environ['SDL_VIDEO_WINDOW_POS'] = '{},{}'.format(100, 100)
+        
+        pygame.init()
+        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        
+        pygame.font.init()
+        myfont = pygame.font.SysFont('Arial', 30)
+        pygame.display.set_caption(windowTitle)
+        return (screen, myfont)
 
-def checkAndActOnEvents():
-    for events in pygame.event.get():
-        if events.type == QUIT:
-            global windowAlive
-            windowAlive = False
+    def getWidth(self):
+        return self.screen.get_width()
 
-def drawPixel(screen, x, y, color):
-    #pygame.draw.rect(screen, color, (x, y, 1, 1), 0)
-    screen.set_at((x, y), color)
+    def getHeight(self):
+        return self.screen.get_height()
 
-def drawPixels(screen, pixels):
-    screenWidth = screen.get_width()
-    screenHeight = screen.get_height()
-    for y in range(screen.get_height()):
-        for x in range(screen.get_width()):
-            drawPixel(screen, x, screenHeight-y, pixels[x+y*screenWidth])
+    def isWindowClosed(self):
+        for events in pygame.event.get():
+            if events.type == QUIT:
+                return True
+        return False
 
-def refreshScreen():
-    pygame.display.update()
+    def drawPixel(self, screen, x, y, color):
+        screen.set_at((x, y), color)
+
+    def drawPixels(self, screen, pixels):
+        screenWidth = self.getWidth()
+        screenHeight = self.getHeight()
+        for y in range(screenHeight):
+            for x in range(screenWidth):
+                self.drawPixel(screen, x, screenHeight-y, pixels[x+y*screenWidth])
+
+    def refreshScreen():
+        pygame.display.update()
 
 def normalize(vector):
     norm = np.linalg.norm(vector)
@@ -141,7 +152,7 @@ class Scene:
             
         return color
 
-    def render(self, screenWidth, screenHeight, pixels):
+    def render(self, screenWidth, screenHeight, onPixelCalculated):
         for y in range(screenHeight):
             for x in range(screenWidth):
                 color = np.array([0,0,0])
@@ -155,13 +166,13 @@ class Scene:
                 else:
                     rayDirection = self.getRay(x, y, screenWidth, screenHeight, self.camera)
                     color = self.getColor(self.camera.position, rayDirection, 1)
-                pixels.append(tuple(np.clip(color, 0, 255)))
+                onPixelCalculated(tuple(np.clip(color, 0, 255)))
             print("Progress: {}%".format(y*100/screenHeight))
 
 
 def main():
     # Init Screen
-    screen, font = initPygame()
+    window = Window("Raytracer")
     screenWidth = screen.get_width()
     screenHeight = screen.get_height()
     screenRatio = screenHeight/screenWidth
@@ -192,12 +203,13 @@ def main():
     while windowAlive:
 
         pixels = []
-        scene.render(screenWidth, screenHeight, pixels)
+        onPixelColor = lambda color: pixels.append(color)
+        scene.render(screenWidth, screenHeight, onPixelColor)
         print(len(pixels))
         drawPixels(screen, pixels)
         #camera.fov += 1.0
         #camera.position[2] += 1.0
-        checkAndActOnEvents()
+        isWindowClosed()
         refreshScreen()
 
     return 0
