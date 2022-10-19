@@ -1,5 +1,5 @@
 import math
-from turtle import position
+import sys
 import numpy as np
 import pygame
 import os
@@ -9,7 +9,7 @@ from time import sleep, time
 WIDTH = 1280
 HEIGHT = 720
 
-WIDTH = 200
+WIDTH = 100
 HEIGHT = 100
 AA = True
 windowAlive = True
@@ -42,17 +42,17 @@ class Window:
                 return True
         return False
 
-    def drawPixel(self, screen, x, y, color):
-        screen.set_at((x, y), color)
+    def drawPixel(self, x, y, color):
+        self.screen.set_at((x, y), color)
 
-    def drawPixels(self, screen, pixels):
+    def drawPixels(self, pixels):
         screenWidth = self.getWidth()
         screenHeight = self.getHeight()
         for y in range(screenHeight):
             for x in range(screenWidth):
-                self.drawPixel(screen, x, screenHeight-y, pixels[x+y*screenWidth])
+                self.drawPixel(x, screenHeight-y, pixels[x+y*screenWidth])
 
-    def refreshScreen():
+    def refreshScreen(self):
         pygame.display.update()
 
 def normalize(vector):
@@ -171,11 +171,11 @@ class Scene:
 
 
 def main():
-    # Init Screen
+    # Setup Window
     window = Window("Raytracer")
-    screenWidth = screen.get_width()
-    screenHeight = screen.get_height()
-    screenRatio = screenHeight/screenWidth
+    screenWidth = window.getWidth()
+    screenHeight = window.getHeight()
+    screenRatio = float(screenHeight)/float(screenWidth)
     print("Width: {}; Height: {}".format(screenWidth, screenHeight))
 
     # Setup Camera
@@ -206,11 +206,12 @@ def main():
         onPixelColor = lambda color: pixels.append(color)
         scene.render(screenWidth, screenHeight, onPixelColor)
         print(len(pixels))
-        drawPixels(screen, pixels)
+        window.drawPixels(pixels)
         #camera.fov += 1.0
         #camera.position[2] += 1.0
-        isWindowClosed()
-        refreshScreen()
+        if(window.isWindowClosed()):
+            sys.exit()
+        window.refreshScreen()
 
     return 0
 
