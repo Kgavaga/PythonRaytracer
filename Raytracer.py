@@ -1,5 +1,6 @@
 import math
 import sys
+from threading import Thread
 import numpy as np
 import pygame
 import os
@@ -9,9 +10,9 @@ from time import sleep, time
 WIDTH = 1280
 HEIGHT = 720
 
-WIDTH = 50
-HEIGHT = 50
-AA = True
+WIDTH = 500
+HEIGHT = 500
+AA = False
 windowAlive = True
 
 class Window:
@@ -50,7 +51,10 @@ class Window:
         screenHeight = self.getHeight()
         for y in range(screenHeight):
             for x in range(screenWidth):
-                self.drawPixel(x, screenHeight-y, pixels[x+y*screenWidth])
+                if x+y*screenWidth < len(pixels):
+                    self.drawPixel(x, screenHeight-y, pixels[x+y*screenWidth])
+                else:
+                    return
 
     def refreshScreen(self):
         pygame.display.update()
@@ -135,28 +139,28 @@ class Scene:
             return closestShape, collisionPoint
         return None, None
 
-    def getColor(self, rayOrigin, rayDirection, iteration):
+    def getColor(self, rayOrigin, rayDirection, depth):
         color = self.backgroundColor
         hitObject, collisonPoint = self.collideWithClosest(self.objects, rayOrigin, rayDirection)
         if hitObject != None:  
             objectNormalVector = normalize(collisonPoint-hitObject.position)
-            lightDirection = normalize(self.light.position - collisonPoint)
-            diffuseStrength = max(0.0,np.dot(lightDirection,objectNormalVector))
+            fromObjectToLightVector = normalize(self.light.position - collisonPoint)
+            diffuseStrength = max(0.0,np.dot(fromObjectToLightVector,objectNormalVector))
             
-            cameraDirection = normalize(self.camera.position - collisonPoint)
-            specular = max(0.0,np.dot(objectNormalVector, normalize(lightDirection+cameraDirection)))**hitObject.specularExponent
+            fromObjectToCameraVector = normalize(self.camera.position - collisonPoint)
+            specular = max(0.0,np.dot(objectNormalVector, normalize(fromObjectToLightVector+fromObjectToCameraVector)))**hitObject.specularExponent
 
             color = hitObject.color*self.light.color*(
-                        hitObject.ambientStrength + diffuseStrength + hitObject.specularStrength*specular
-                    )
+                hitObject.ambientStrength + diffuseStrength + hitObject.specularStrength*specular
+            )
             
-            if iteration < 4:
+            if depth < 4:
                 reflectedDirection = rayDirection-2.0*np.dot(rayDirection,objectNormalVector)*objectNormalVector
-                color += 0.2* self.getColor(collisonPoint, reflectedDirection, iteration+1)
+                color += 0.2* self.getColor(collisonPoint, reflectedDirection, depth+1)
             
         return color
 
-    def render(self, screenWidth, screenHeight, onPixelCalculated):
+    def render(self, screenWidth, screenHeight, pixels):
         for y in range(screenHeight):
             for x in range(screenWidth):
                 color = np.array([0,0,0])
@@ -170,8 +174,8 @@ class Scene:
                 else:
                     rayDirection = self.getRay(x, y, screenWidth, screenHeight, self.camera)
                     color = self.getColor(self.camera.position, rayDirection, 1)
+                pixels.append(tuple(np.clip(color, 0, 255)))
 
-                onPixelCalculated(tuple(np.clip(color, 0, 255)))
             print("Progress: {}%".format(y*100/screenHeight))
         print("Progress: 100%")
 
@@ -179,13 +183,13 @@ class Scene:
 def main():
     # Setup Window
     window = Window("Raytracer")
-    screenWidth = window.getWidth()
-    screenHeight = window.getHeight()
-    screenRatio = float(screenHeight)/float(screenWidth)
-    print("Width: {}; Height: {}".format(screenWidth, screenHeight))
+    windowWidth = window.getWidth()
+    windowHeight = window.getHeight()
+    windowRatio = float(windowHeight)/float(windowWidth)
+    print("Width: {}; Height: {}".format(windowWidth, windowHeight))
 
     # Setup Camera
-    camera = Camera(np.array([0.0,1.0,5.0]), np.array([0.0,0.0,-1.0]), 100.0, screenRatio)
+    camera = Camera(np.array([0.0,1.0,5.0]), np.array([0.0,0.0,-1.0]), 100.0, windowRatio)
 
     # Setup Spheres
     spheres: Collideable = []
@@ -206,24 +210,18 @@ def main():
     # Create Scene
     scene = Scene(camera, spheres, light, backgroundColor)
 
+    pixels = []
+    renderThread = Thread(target=scene.render, args=[windowWidth, windowHeight, pixels], daemon=True)
+    renderThread.start()
+
     while windowAlive:
-
-        pixels = []
-        onPixelColor = lambda color: pixels.append(color)
-
-        startTime = time()
-        scene.render(screenWidth, screenHeight, onPixelColor)
-        print("It took: {}".format(time()-startTime))
-        
         window.drawPixels(pixels)
-        #camera.fov += 1.0
-        #camera.position[2] += 1.0
         if(window.isWindowClosed()):
             sys.exit()
         window.refreshScreen()
+        sleep(0.1)
 
     return 0
-
 
 if __name__ == "__main__":
     main()
