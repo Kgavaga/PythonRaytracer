@@ -9,8 +9,8 @@ from time import sleep, time
 WIDTH = 1280
 HEIGHT = 720
 
-WIDTH = 100
-HEIGHT = 100
+WIDTH = 50
+HEIGHT = 50
 AA = True
 windowAlive = True
 
@@ -70,8 +70,12 @@ class Camera:
         self.position = position
         self.direction = direction
         self.fov = fov
+        self.screenRatio = screenRatio
+        self.distanceFromProjectionPlane = self.calculateDistanceFromProjectionPlane(screenRatio,fov)
+
+    def calculateDistanceFromProjectionPlane(self, screenRatio, fov):
         tangent = 1/screenRatio
-        self.distanceFromProjectionPlane = abs(tangent/math.tan(math.radians(fov/2)))
+        return abs(tangent/math.tan(math.radians(fov/2)))
 
 class Light:
     def __init__(self, position, color):
@@ -79,23 +83,26 @@ class Light:
         self.color = color
 
 class Sphere (Collideable):
-    def __init__(self, position, radius, color):
+    def __init__(self, position, radius, color, ambientStrength = 0.1, specularStrength = 0.8, specularExponent = 128.0):
         self.position = position
         self.radius = radius
         self.color = color
-        self.ambientStrength = 0.1
-        self.specularStrength = 0.8
-        self.specularExponent = 128.0
+        self.ambientStrength = ambientStrength
+        self.specularStrength = specularStrength
+        self.specularExponent = specularExponent
         
     def collidesWith(self, rayOrigin, rayDirection):
         b = 2 * np.dot(rayDirection, rayOrigin - self.position)
         c = np.linalg.norm(rayOrigin - self.position) ** 2 - self.radius ** 2
         delta = b ** 2 - 4 * c
         if delta > 0:
-            t1 = (-b + np.sqrt(delta)) / 2
+            # t1 = (-b + np.sqrt(delta)) / 2
+            # t2 = (-b - np.sqrt(delta)) / 2
+            # if t1 > 0 and t2 > 0:
+            #     return min(t1, t2)
             t2 = (-b - np.sqrt(delta)) / 2
-            if t1 > 0 and t2 > 0:
-                return min(t1, t2)
+            if t2 > 0:
+                return t2
         return None
  
 
@@ -115,13 +122,10 @@ class Scene:
         return normalize(pixelPosition)
 
     def collideWithClosest(self, shapes:Collideable, rayOrigin, rayDirection):
-        timesOfCollisonList = []
-        for shape in shapes: # look at the rest of the shapes
-            timesOfCollisonList.append(shape.collidesWith(rayOrigin, rayDirection))
-
         closestShape = None
         timeOfClosestCollison = np.inf
-        for shapeIndex, time in enumerate(timesOfCollisonList):
+        for shapeIndex in range(len(shapes)):
+            time = shapes[shapeIndex].collidesWith(rayOrigin, rayDirection)
             if time and time < timeOfClosestCollison:
                 closestShape = shapes[shapeIndex]
                 timeOfClosestCollison = time
@@ -166,8 +170,10 @@ class Scene:
                 else:
                     rayDirection = self.getRay(x, y, screenWidth, screenHeight, self.camera)
                     color = self.getColor(self.camera.position, rayDirection, 1)
+
                 onPixelCalculated(tuple(np.clip(color, 0, 255)))
             print("Progress: {}%".format(y*100/screenHeight))
+        print("Progress: 100%")
 
 
 def main():
@@ -204,8 +210,11 @@ def main():
 
         pixels = []
         onPixelColor = lambda color: pixels.append(color)
+
+        startTime = time()
         scene.render(screenWidth, screenHeight, onPixelColor)
-        print(len(pixels))
+        print("It took: {}".format(time()-startTime))
+        
         window.drawPixels(pixels)
         #camera.fov += 1.0
         #camera.position[2] += 1.0
